@@ -35,13 +35,17 @@ pub fn build(b: *std.Build) void {
         .flags = c_flags,
     });
 
-    // C helpers: LVGL fields Zig cannot reach (bit fields) and JPEG preview
-    // decoding with libjpeg (needs setjmp/longjmp for error handling).
-    lvgl_lib.root_module.addCSourceFiles(.{
-        .files = &.{ "src/lv_helpers.c", "src/preview.c" },
-        .flags = c_flags,
+    // C helpers for LVGL fields Zig cannot reach (bit fields)
+    lvgl_lib.root_module.addCSourceFile(.{ .file = b.path("src/lv_helpers.c"), .flags = c_flags });
+
+    // JPEG preview with stb_image. Always optimized: decoding large photos
+    // at -O0 takes seconds.
+    const stb_dep = b.dependency("stb", .{});
+    lvgl_lib.root_module.addIncludePath(stb_dep.path(""));
+    lvgl_lib.root_module.addCSourceFile(.{
+        .file = b.path("src/preview.c"),
+        .flags = &.{ "-std=gnu11", "-DLV_CONF_INCLUDE_SIMPLE", "-Wno-gcc-install-dir-libstdcxx", "-O2" },
     });
-    lvgl_lib.root_module.linkSystemLibrary("jpeg", .{});
 
     // lvgl.h -> Zig
     const lvgl_c = b.addTranslateC(.{
@@ -98,6 +102,8 @@ pub fn build(b: *std.Build) void {
     main_module.addAnonymousImport("test_photo", .{ .root_source_file = b.path("test/photo.jpg") });
 
     const exe = b.addExecutable(.{ .name = "eexif", .root_module = main_module });
+    // Windows: a GUI program, no console window next to it
+    if (target.result.os.tag == .windows) exe.subsystem = .windows;
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);

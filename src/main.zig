@@ -255,7 +255,8 @@ pub fn handleEvent(ev: *const sdl.SDL_Event) !void {
             flushKeys();
         },
         sdl.SDL_EVENT_KEY_DOWN => {
-            if ((ev.key.mod & sdl.SDL_KMOD_CTRL) != 0) {
+            // Ctrl on Windows and Linux, Cmd on macOS
+            if ((ev.key.mod & (sdl.SDL_KMOD_CTRL | sdl.SDL_KMOD_GUI)) != 0) {
                 switch (ev.key.key) {
                     sdl.SDLK_S => ui.saveShortcut(),
                     sdl.SDLK_O => ui.openFileShortcut(),
@@ -323,7 +324,7 @@ pub fn main(init: std.process.Init) !void {
     lv.lv_indev_set_group(keypad, group);
     lv.lv_group_set_focus_cb(group, onFocusChanged);
 
-    try ui.init(gpa, init.io, scale);
+    try ui.init(gpa, init.io, window, scale);
     defer ui.deinit();
 
     if (sdl.SDL_getenv("EEXIF_TEST") != null) return app_test.run(gpa, init.io);

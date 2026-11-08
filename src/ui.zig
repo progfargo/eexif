@@ -8,6 +8,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Io = std.Io;
 const lv = @import("lvgl");
+const sdl = @import("sdl3");
 const wexif = @import("wexif");
 const edit = @import("edit");
 const dialogs = @import("dialogs.zig");
@@ -169,11 +170,11 @@ pub var status_text: []const u8 = "";
 // ---------------------------------------------------------------------------
 // Setup
 
-pub fn init(allocator: Allocator, io_: Io, ui_scale: f32) !void {
+pub fn init(allocator: Allocator, io_: Io, window: ?*sdl.SDL_Window, ui_scale: f32) !void {
     gpa = allocator;
     io = io_;
     frame_arena = .init(gpa);
-    dialogs.init(gpa, io);
+    dialogs.init(gpa, window);
 
     var opts: std.Io.Writer.Allocating = .init(gpa);
     defer opts.deinit();
@@ -603,8 +604,8 @@ fn runPending(action: Pending) void {
 
 fn pollDialogs(_: ?*lv.lv_timer_t) callconv(.c) void {
     const r = dialogs.poll() orelse return;
-    if (r.failed) {
-        setStatusText("Could not start zenity. Install it, or pass a path on the command line: eexif <photo or folder>", .err);
+    if (r.err) |msg| {
+        setStatus(.err, "Could not show the open dialog ({s}). You can pass a path on the command line: eexif <photo or folder>", .{msg});
         return;
     }
     const path = r.path orelse return;

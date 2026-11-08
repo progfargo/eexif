@@ -1,101 +1,80 @@
-//! Native open dialogs through zenity. The dialog runs on a worker thread so
-//! the window keeps redrawing; the UI polls for the result from a timer.
+//! Native open dialogs through SDL3 (Windows and macOS system dialogs;
+//! on Linux the desktop portal or zenity). SDL may call back from another
+//! thread, so the result is handed over through an atomic flag and the UI
+//! polls for it from a timer.
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const Io = std.Io;
+const sdl = @import("sdl3");
 
 pub const Kind = enum { open_file, open_folder };
 
 pub const Result = struct {
     kind: Kind,
-    /// Selected path, or null if the dialog was cancelled.
+    /// Selected path, or null if the dialog was cancelled or failed.
     path: ?[:0]u8,
-    /// Set if zenity could not be started.
-    failed: bool = false,
+    /// Error text if the dialog could not be shown.
+    err: ?[]const u8 = null,
 };
 
 var gpa: Allocator = undefined;
-var io: Io = undefined;
-var thread: ?std.Thread = null;
+var window: ?*sdl.SDL_Window = null;
+var open = false;
 var done: std.atomic.Value(bool) = .init(false);
 var result: Result = undefined;
-var start_dir_buf: [std.fs.max_path_bytes]u8 = undefined;
-var start_dir: []const u8 = "";
+var location_buf: [std.fs.max_path_bytes:0]u8 = undefined;
+var err_buf: [256]u8 = undefined;
 
-pub fn init(allocator: Allocator, io_: Io) void {
+const filters = [_]sdl.SDL_DialogFileFilter{
+    .{ .name = "JPEG images", .pattern = "jpg;jpeg;JPG;JPEG" },
+    .{ .name = "All files", .pattern = "*" },
+};
+
+pub fn init(allocator: Allocator, win: ?*sdl.SDL_Window) void {
     gpa = allocator;
-    io = io_;
+    window = win;
 }
 
-/// Waits for an open dialog to be closed by the user.
 pub fn deinit() void {
-    if (thread) |t| {
-        t.join();
-        thread = null;
+    if (done.load(.acquire)) {
         if (result.path) |p| gpa.free(p);
     }
 }
 
 pub fn busy() bool {
-    return thread != null;
+    return open;
 }
 
 /// Opens a dialog unless one is already open. `dir` is where it starts.
 pub fn start(kind: Kind, dir: ?[]const u8) void {
-    if (thread != null) return;
-    start_dir = if (dir) |d| std.fmt.bufPrint(&start_dir_buf, "{s}/", .{d}) catch "" else "";
+    if (open) return;
+    open = true;
     done.store(false, .release);
     result = .{ .kind = kind, .path = null };
-    thread = std.Thread.spawn(.{}, worker, .{kind}) catch {
-        result.failed = true;
-        done.store(true, .release);
-        return;
-    };
+    const location: ?[*:0]const u8 = if (dir) |d|
+        (std.fmt.bufPrintSentinel(&location_buf, "{s}", .{d}, 0) catch null)
+    else
+        null;
+    switch (kind) {
+        .open_file => sdl.SDL_ShowOpenFileDialog(onResult, null, window, &filters, filters.len, location, false),
+        .open_folder => sdl.SDL_ShowOpenFolderDialog(onResult, null, window, location, false),
+    }
 }
 
 /// Returns the result once the dialog is closed. Caller owns `path`.
 pub fn poll() ?Result {
     if (!done.load(.acquire)) return null;
-    if (thread) |t| t.join();
-    thread = null;
     done.store(false, .release);
+    open = false;
     return result;
 }
 
-fn worker(kind: Kind) void {
-    var filename_buf: [std.fs.max_path_bytes + 16]u8 = undefined;
-    const filename = std.fmt.bufPrint(&filename_buf, "--filename={s}", .{start_dir}) catch "--filename=";
-    const argv: []const []const u8 = switch (kind) {
-        .open_file => &.{
-            "zenity",
-            "--file-selection",
-            "--title=Open a photo",
-            filename,
-            "--file-filter=JPEG images | *.jpg *.jpeg *.JPG *.JPEG *.Jpg",
-            "--file-filter=All files | *",
-        },
-        .open_folder => &.{
-            "zenity",
-            "--file-selection",
-            "--directory",
-            "--title=Open a folder of photos",
-            filename,
-        },
-    };
-    const run = std.process.run(gpa, io, .{ .argv = argv }) catch {
-        result.failed = true;
-        done.store(true, .release);
-        return;
-    };
-    defer gpa.free(run.stdout);
-    defer gpa.free(run.stderr);
-
-    const ok = switch (run.term) {
-        .exited => |code| code == 0,
-        else => false,
-    };
-    const path = std.mem.trimEnd(u8, run.stdout, "\r\n");
-    if (ok and path.len > 0) result.path = gpa.dupeSentinel(u8, path, 0) catch null;
+/// filelist: null on error, empty (first item null) when cancelled.
+fn onResult(_: ?*anyopaque, filelist: [*c]const [*c]const u8, _: c_int) callconv(.c) void {
+    if (filelist == null) {
+        result.err = std.fmt.bufPrint(&err_buf, "{s}", .{std.mem.span(sdl.SDL_GetError())}) catch "unknown error";
+    } else if (filelist[0] != null) {
+        result.path = gpa.dupeSentinel(u8, std.mem.span(filelist[0]), 0) catch null;
+    }
     done.store(true, .release);
 }

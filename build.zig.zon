@@ -44,6 +44,10 @@
             .url = "https://github.com/progfargo/wexif/archive/70ebf008e36178a8b34378b72909c591a5c0874c.tar.gz",
             .hash = "wexif-0.1.0-L98BGmuvAQCuYZTTbOn6iFvYGqD0vwCS113b-KDxoFQe",
         },
+        .stb = .{
+            .url = "https://github.com/nothings/stb/archive/4e9b368bfc071e97206ea5c6adba68dd0cbf8897.tar.gz",
+            .hash = "N-V-__8AAFRGTgBWHIQULKwDqlrvga2AR9enp42AsQ7z-yXN",
+        },
     },
     .paths = .{
         "build.zig",
