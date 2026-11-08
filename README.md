@@ -109,7 +109,9 @@ It prints `test: ok` at the end. Add `EEXIF_SHOT=<dir>` to save screenshots.
   tried. Building for macOS from another OS is not supported, as it needs
   Apple's SDK.
 
-Written with Claude.
+Built with [Claude Code](https://claude.com/claude-code). I defined the
+features and requirements, chose the tools (Zig, LVGL, SDL3, wexif),
+reviewed the results and tested the app; Claude wrote most of the code.
 
 ## License
 
