@@ -94,6 +94,8 @@ pub fn build(b: *std.Build) void {
     });
     main_module.linkLibrary(lvgl_lib);
     main_module.linkLibrary(sdl_dep.artifact("SDL3"));
+    // Sample photo for the in-app test (EEXIF_TEST=1)
+    main_module.addAnonymousImport("test_photo", .{ .root_source_file = b.path("test/photo.jpg") });
 
     const exe = b.addExecutable(.{ .name = "eexif", .root_module = main_module });
     b.installArtifact(exe);

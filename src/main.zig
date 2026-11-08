@@ -1,5 +1,5 @@
 //! Platform layer: SDL3 window, LVGL display driver, mouse and keyboard
-//! input. The screens are in src/ui.zig.
+//! input, and the in-app test mode. The screens are in src/ui.zig.
 //!
 //! Usage: eexif [photo.jpg | folder]
 
@@ -7,6 +7,7 @@ const std = @import("std");
 const sdl = @import("sdl3");
 const lv = @import("lvgl");
 const ui = @import("ui");
+const app_test = @import("app_test.zig");
 
 /// Default window size at 1x scale
 const base_w = 1280;
@@ -218,7 +219,7 @@ fn pasteClipboard() void {
     typeText(s[0 .. std.mem.indexOfAny(u8, s, "\r\n") orelse s.len]);
 }
 
-/// Passes one SDL event to LVGL.
+/// Passes one SDL event to LVGL (used by the main loop and the test mode).
 pub fn handleEvent(ev: *const sdl.SDL_Event) !void {
     switch (ev.type) {
         sdl.SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED => {
@@ -324,6 +325,8 @@ pub fn main(init: std.process.Init) !void {
 
     try ui.init(gpa, init.io, scale);
     defer ui.deinit();
+
+    if (sdl.SDL_getenv("EEXIF_TEST") != null) return app_test.run(gpa, init.io);
 
     if (args.len > 1) ui.openPath(args[1]);
 
