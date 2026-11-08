@@ -4,6 +4,7 @@
 //! Usage: eexif [photo.jpg | folder]
 
 const std = @import("std");
+const builtin = @import("builtin");
 const sdl = @import("sdl3");
 const lv = @import("lvgl");
 const ui = @import("ui");
@@ -279,10 +280,12 @@ pub fn handleEvent(ev: *const sdl.SDL_Event) !void {
 }
 
 pub fn main(init: std.process.Init) !void {
-    // All Zig-side memory goes through this allocator; leaks are reported on exit.
+    // Debug builds check Zig-side memory and report leaks on exit;
+    // release builds use the fast general purpose allocator.
+    const debug = builtin.mode == .debug;
     var debug_alloc: std.heap.DebugAllocator(.{}) = .init;
-    defer if (debug_alloc.deinit() == .leak) std.debug.print("WARNING: memory leak found (see the report above)\n", .{});
-    gpa = debug_alloc.allocator();
+    defer if (debug and debug_alloc.deinit() == .leak) std.debug.print("WARNING: memory leak found (see the report above)\n", .{});
+    gpa = if (debug) debug_alloc.allocator() else std.heap.smp_allocator;
     defer if (frame.len > 0) gpa.free(frame);
 
     const args = try init.minimal.args.toSlice(init.arena.allocator());
