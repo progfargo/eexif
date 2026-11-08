@@ -55,13 +55,8 @@ Value formats:
 
 ## Building
 
-Requirements:
-
-- Zig 0.17.1
-- libjpeg (libjpeg-turbo) development files, for the preview: `sudo apt install libjpeg-turbo8-dev`
-- zenity, for the open dialogs: `sudo apt install zenity`
-
-LVGL, SDL3 and wexif are fetched by the Zig build system.
+The only requirement is Zig 0.17.1. LVGL, SDL3, stb_image and wexif are
+fetched and built by the Zig build system; nothing else needs to be installed.
 
 ```sh
 zig build                          # debug build: zig-out/bin/eexif
@@ -69,7 +64,14 @@ zig build -Doptimize=ReleaseSmall  # about 5 MB
 zig build run -- ~/Pictures
 ```
 
-Tested on Linux (X11).
+Windows build (from Linux or Windows):
+
+```sh
+zig build -Dtarget=x86_64-windows -Doptimize=ReleaseSmall   # zig-out/bin/eexif.exe
+```
+
+The result is a single `eexif.exe` that only uses DLLs that come with Windows
+10 and later.
 
 ## Tests
 
@@ -94,6 +96,18 @@ It prints `test: ok` at the end. Add `EEXIF_SHOT=<dir>` to save screenshots.
 - JPEG only
 - The MakerNote field is kept as is but cannot be edited
 - XMP and IPTC metadata are left untouched
+- CMYK JPEGs have no preview (their EXIF can still be edited)
+
+## Platforms
+
+- **Linux:** developed and tested on Linux (X11).
+- **Windows:** the code is portable and builds for Windows (see above), but
+  the Windows build has not been tested on Windows yet. Reports are welcome.
+- **macOS:** not built or tested. Nothing in the code is Linux-specific
+  (SDL3 provides the window and the native open dialogs, and shortcuts also
+  work with Cmd), so `zig build` on a Mac should work, but this has not been
+  tried. Building for macOS from another OS is not supported, as it needs
+  Apple's SDK.
 
 Written with Claude.
 

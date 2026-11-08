@@ -24,14 +24,20 @@ Same platform layer and conventions as ~/project/repeto/repeto.
 - `src/ui.zig`: screens and dialogs. `refs` and `fieldButton` expose widgets to the test.
 - `src/edit.zig`: no UI. Value <-> text, documents (load/save/revert), atomic save,
   folder listing, batch operations. Unit tested.
-- `src/dialogs.zig`: zenity open dialogs on a worker thread, polled by an LVGL timer.
-- `src/preview.c`: JPEG preview with libjpeg (setjmp/longjmp error handling must stay
-  in C), decoded at 1/2..1/8 scale, box-filtered and oriented by EXIF Orientation.
+- `src/dialogs.zig`: native open dialogs (`SDL_ShowOpenFileDialog` /
+  `SDL_ShowOpenFolderDialog`); SDL may call back on another thread, so the result goes
+  through an atomic flag polled by an LVGL timer.
+- `src/preview.c`: JPEG preview with stb_image (pinned in build.zig.zon), box-filtered
+  to fit and oriented by EXIF Orientation. Always built with -O2.
 - `src/lv_helpers.c`: LVGL fields with bit fields (opaque in Zig): font fallback,
   draw buffer size.
 - `src/app_test.zig`: in-app test; `test/photo.jpg` is its fixture.
 
 ## Notes
+
+- No system libraries besides libc: keep it that way so the Windows build stays a
+  single exe. Windows: `zig build -Dtarget=x86_64-windows` (GUI subsystem). It cannot
+  be run here (no wine); check imports and subsystem of the PE file instead.
 
 - `@cImport` is gone in Zig 0.17: C headers go through `b.addTranslateC`.
 - LVGL 9.6 deprecates `lv_obj_add_flag(.., HIDDEN)` / `CLICKABLE` and NULL displays;
